@@ -16,6 +16,8 @@ namespace HomeAssistantClient
         private TimeSpan WaitAfterSuccessInterval = TimeSpan.FromSeconds(60);
         private TimeSpan WaitAfterErrorInterval = TimeSpan.FromSeconds(120);
         private RestApiClient restApiClient;
+        private string logLocation;
+
         public HomeAssistantService()
         {
             InitializeComponent();
@@ -39,6 +41,8 @@ namespace HomeAssistantClient
 
             EventLog.Source = ServiceName;
             EventLog.Log = "Application";
+
+            logLocation = ConfigurationManager.AppSettings["LogLocation"];
 
             var baseUrl = ConfigurationManager.AppSettings["BaseUrl"];
             var token = ConfigurationManager.AppSettings["Token"];
@@ -101,26 +105,41 @@ namespace HomeAssistantClient
         {
             WriteToFile($"In OnPowerEvent {powerStatus} {{0}}");
             EventLog.WriteEntry($"In OnPowerEvent {powerStatus}");
+            var sceneKeyName = $"{powerStatus}Scene";
+            LaunchScene(sceneKeyName);
+            /*
             switch (powerStatus)
             {
                 case PowerBroadcastStatus.ResumeSuspend:
-                    //TODO: Send API Call to Home Assistant
-                    WriteToFile("Launch Resume Scene {0}");
-                    EventLog.WriteEntry("Launch Resume Scene");
-                    var resumeScene = ConfigurationManager.AppSettings["ResumeScene"];
-                    restApiClient.ActivateScene(resumeScene);
-                    //SendMQTTEvent("1");
+                    LaunchScene("ResumeSuspendScene");
                     break;
                 case PowerBroadcastStatus.Suspend:
-                    //TODO: Send API Call to Home Assistant
-                    WriteToFile("Launch Suspend Scene {0}");
-                    EventLog.WriteEntry("Launch Suspend Scene");
-                    var suspendScene = ConfigurationManager.AppSettings["SuspendScene"];
-                    restApiClient.ActivateScene(suspendScene);
-                    //SendMQTTEvent("0");
+                    LaunchScene("SuspendScene");
                     break;
             }
+            */
             return base.OnPowerEvent(powerStatus);
+        }
+
+        private void LaunchScene(string sceneKeyName)
+        {
+            try
+            {
+                WriteToFile($"Launch {sceneKeyName} {{0}}");
+                EventLog.WriteEntry($"Launch {sceneKeyName}");
+
+                var sceneName = ConfigurationManager.AppSettings[sceneKeyName];
+                if (!string.IsNullOrWhiteSpace(sceneName))
+                {
+                    restApiClient.ActivateScene(sceneName);
+                }
+            }
+            catch (Exception ex)
+            {
+                WriteToFile($"Exception Launching {sceneKeyName} - {ex.Message} {{0}}");
+                WriteToFile(ex.ToString());
+            }
+
         }
 
         private void WriteToFile(string text)
@@ -128,7 +147,7 @@ namespace HomeAssistantClient
             if (!bool.Parse(ConfigurationManager.AppSettings["LogToFile"] ?? "false"))
                 return;
 
-            string path = @"D:\Dev\HAService\ServiceLog.txt";
+            string path = Path.Combine(logLocation + "ServiceLog.txt");
             using (var writer = new StreamWriter(path, true))
             {
                 writer.WriteLine(string.Format(text, DateTime.Now.ToString("dd/MM/yyyy hh:mm:ss tt")));
