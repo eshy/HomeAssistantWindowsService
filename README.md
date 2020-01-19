@@ -25,7 +25,9 @@ A Long-Lived Access Token (create one from your profile page in Home Assistant)
 ##### SuspendScene
 The scene to trigger when the computer is suspended
 
-##### ResumeScene
+##### ResumeSuspendScene
 The scene to trigger when the computer wakes up
+
+note: Other statuses are available as well. Just add a key with the [PowerBroadcastStatus](https://docs.microsoft.com/en-us/dotnet/api/system.serviceprocess.powerbroadcaststatus?view=netframework-4.8) name and append Scene to that key.
 
 After updating the config file start the service and your scenes should be triggered.
