@@ -1,4 +1,5 @@
 ﻿using HomeAssistantClient;
+using System;
 using System.Configuration;
 
 namespace ConsoleTestApp
@@ -7,11 +8,18 @@ namespace ConsoleTestApp
     {
         static void Main(string[] args)
         {
-            var baseUrl = ConfigurationManager.AppSettings["BaseUrl"];
-            var token = ConfigurationManager.AppSettings["Token"];
-            var restApiClient = new RestApiClient(baseUrl, token);
-            var resumeScene = ConfigurationManager.AppSettings["ResumeScene"];
-            restApiClient.ActivateScene(resumeScene);
+            try
+            {
+                var baseUrl = ConfigurationManager.AppSettings["BaseUrl"];
+                var token = ConfigurationManager.AppSettings["Token"];
+                var restApiClient = new RestApiClient(baseUrl, token, null);
+                var resumeScene = ConfigurationManager.AppSettings["ResumeSuspendScene"];
+                restApiClient.ActivateScene(resumeScene);
+            }
+            catch (Exception ex)
+            {
+            }
+
         }
     }
 }

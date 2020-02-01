@@ -5,7 +5,8 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.ComponentModel;
 using System.Diagnostics;
-using System.IO;
+using Microsoft.Extensions.Logging;
+using HomeAssistantPowerStateService;
 
 namespace HomeAssistantClient
 {
@@ -16,7 +17,7 @@ namespace HomeAssistantClient
         private TimeSpan WaitAfterSuccessInterval = TimeSpan.FromSeconds(60);
         private TimeSpan WaitAfterErrorInterval = TimeSpan.FromSeconds(120);
         private RestApiClient restApiClient;
-        private string logLocation;
+        private ILogger _logger;
 
         public HomeAssistantService()
         {
@@ -42,16 +43,20 @@ namespace HomeAssistantClient
             EventLog.Source = ServiceName;
             EventLog.Log = "Application";
 
-            logLocation = ConfigurationManager.AppSettings["LogLocation"];
+            var logLocation = ConfigurationManager.AppSettings["LogLocation"];
+            if (bool.Parse(ConfigurationManager.AppSettings["LogToFile"] ?? "false"))
+            {
+                _logger = new TextFileLogger(logLocation);
+            }
 
             var baseUrl = ConfigurationManager.AppSettings["BaseUrl"];
             var token = ConfigurationManager.AppSettings["Token"];
-            restApiClient = new RestApiClient(baseUrl, token);
+            restApiClient = new RestApiClient(baseUrl, token, _logger);
         }
 
         protected override void OnStart(string[] args)
         {
-            WriteToFile("Home Assistant Service started {0}");
+            _logger?.LogDebug("Home Assistant Service started");
             
             mainTask = new Task(Poll, cts.Token, TaskCreationOptions.LongRunning);
             mainTask.Start();
@@ -59,20 +64,20 @@ namespace HomeAssistantClient
 
         protected override void OnStop()
         {
-            WriteToFile("Home Assistant Service stopped {0}");
+            _logger?.LogDebug("Home Assistant Service stopped");
             cts.Cancel();
             mainTask.Wait();
         }
 
         protected override void OnPause()
         {
-            WriteToFile("Home Assistant Service paused {0}");
+            _logger?.LogDebug("Home Assistant Service paused");
             base.OnPause();
         }
 
         protected override void OnContinue()
         {
-            WriteToFile("Home Assistant Service continued {0}");
+            _logger?.LogDebug("Home Assistant Service continued");
             base.OnContinue();
         }
 
@@ -103,7 +108,7 @@ namespace HomeAssistantClient
 
         protected override bool OnPowerEvent(PowerBroadcastStatus powerStatus)
         {
-            WriteToFile($"In OnPowerEvent {powerStatus} {{0}}");
+            _logger?.LogDebug($"In OnPowerEvent {powerStatus}");
             EventLog.WriteEntry($"In OnPowerEvent {powerStatus}");
             var sceneKeyName = $"{powerStatus}Scene";
             LaunchScene(sceneKeyName);
@@ -125,34 +130,24 @@ namespace HomeAssistantClient
         {
             try
             {
-                WriteToFile($"Launch {sceneKeyName} {{0}}");
+                _logger?.LogDebug($"Launch {sceneKeyName}");
                 EventLog.WriteEntry($"Launch {sceneKeyName}");
 
                 var sceneName = ConfigurationManager.AppSettings[sceneKeyName];
                 if (!string.IsNullOrWhiteSpace(sceneName))
                 {
+                    _logger?.LogDebug($"Call API to Activate Scene {sceneName}");
                     restApiClient.ActivateScene(sceneName);
+                    _logger?.LogDebug($"Call API to Activate Scene {sceneName} Done");
                 }
             }
             catch (Exception ex)
             {
-                WriteToFile($"Exception Launching {sceneKeyName} - {ex.Message} {{0}}");
-                WriteToFile(ex.ToString());
+                _logger?.LogError(ex, $"Exception Launching {sceneKeyName} - {ex.Message}");
             }
 
         }
 
-        private void WriteToFile(string text)
-        {
-            if (!bool.Parse(ConfigurationManager.AppSettings["LogToFile"] ?? "false"))
-                return;
 
-            string path = Path.Combine(logLocation + "ServiceLog.txt");
-            using (var writer = new StreamWriter(path, true))
-            {
-                writer.WriteLine(string.Format(text, DateTime.Now.ToString("dd/MM/yyyy hh:mm:ss tt")));
-                writer.Close();
-            }
-        }
     }
 }
